@@ -1,4 +1,4 @@
-package utility_misc
+package Python_Like_Printer
 
 import (
 	"fmt"
