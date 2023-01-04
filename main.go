@@ -300,7 +300,6 @@ func Get_Information(token string) Final_ {
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("Authorization", token)
 	req.Header.Add("Content-Type", "application/json")
-	client.Do(req)
 	if err != nil {
 		panic(err)
 	}
@@ -309,12 +308,9 @@ func Get_Information(token string) Final_ {
 		panic(err)
 	}
 	defer res.Body.Close()
-	var response_body Datastruct
-	json.NewDecoder(res.Body).Decode(&response_body)
-	req, err = http.NewRequest("GET", nitro_url, nil)
-	req.Header.Add("Authorization", token)
-	req.Header.Add("Content-Type", "application/json")
-	client.Do(req)
+	req_nitro, err := http.NewRequest("GET", nitro_url, nil)
+	req_nitro.Header.Add("Authorization", token)
+	req_nitro.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		panic(err)
 	}
@@ -323,18 +319,37 @@ func Get_Information(token string) Final_ {
 		panic(err)
 	}
 	defer res.Body.Close()
-	response_body.has_nitro = false
-	resq, err := ioutil.ReadAll(res.Body)
-	j := string(resq)
+	var response_body Datastruct
+	str, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		panic(err)
 	}
-	j = strings.TrimSpace(j)
-	if len(j) > 2 {
+	j, err := fjp.Parse(string(str))
+	response_body.user_name = j.Get("username").String()
+	response_body.user_id = j.Get("id").String()
+	response_body.email = j.Get("email").String()
+	response_body.phone = j.Get("phone").String()
+	response_body.mfa_enabled = j.GetBool("mfa_enabled")
+
+	response_body.has_nitro = false
+	if err != nil {
+		panic(err)
+	}
+	res, err = client.Do(req_nitro)
+	if err != nil {
+		panic(err)
+	}
+	str, err = ioutil.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+	response_body_nitro, err := fjp.Parse(string(str))
+	if response_body_nitro.Get("0") == nil {
 		response_body.has_nitro = false
 	} else {
 		response_body.has_nitro = true
-		json.NewDecoder(res.Body).Decode(&response_body.nitro_data)
+		response_body.nitro_data.current_period_start = response_body_nitro.Get("0").Get("current_period_start").String()
+		response_body.nitro_data.current_period_end = response_body_nitro.Get("0").Get("current_period_end").String()
 	}
 	var start time.Time
 	var end time.Time
